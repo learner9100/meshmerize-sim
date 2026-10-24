@@ -28,11 +28,11 @@ test: $(TESTS)
 tools: $(TOOLS)
 
 show: $(BUILD)/show
-> ./$(BUILD)/show --seed $(SEED) --size $(W) $(H) --loops $(LOOPS) --checkpoints $(CPS) \
+> @./$(BUILD)/show --seed $(SEED) --size $(W) $(H) --loops $(LOOPS) --checkpoints $(CPS) \
 >   $(if $(STRAT),--strategy $(STRAT),) $(if $(ROBOT),--robot $(ROBOT),) $(EXTRA)
 
 compare: $(BUILD)/compare
-> ./$(BUILD)/compare --seeds $(SEEDS) --size $(W) $(H) --loops $(LOOPS) --checkpoints $(CPS) \
+> @./$(BUILD)/compare --seeds $(SEEDS) --size $(W) $(H) --loops $(LOOPS) --checkpoints $(CPS) \
 >   $(if $(ROBOT),--robot $(ROBOT),) $(if $(CSV),--csv $(CSV),) $(EXTRA)
 
 $(BUILD)/%: tests/%.cpp $(HEADERS) | $(BUILD)

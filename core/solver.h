@@ -25,7 +25,7 @@ struct Path{
 
 // Dijkstra over (node, exit we arrived through) so a turn can be priced by
 // looking at where we came from. Ties on cost are broken by fewer turns.
-// About 17 KB of scratch: on the ESP32 keep one of these static.
+// About 16 KB of scratch: on the ESP32 keep one of these static.
 class PathFinder{
     private:
         static constexpr int SLOTS = MAX_EXITS + 1;   // +1 for "arrived from nowhere"

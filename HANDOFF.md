@@ -2,6 +2,12 @@
 
 Put this file in the repo root and read it completely before touching any code.
 
+> **Status note.** This brief was written before the simulator was built out.
+> Sections 4, 5 and 8 describe that earlier state. For what exists now, how to
+> use it and the current list of assumptions, read `README.md`. The rules of
+> engagement (section 0), the competition facts (section 2) and the coding
+> rules (section 6) still apply unchanged.
+
 ---
 
 ## 0. Read this first
