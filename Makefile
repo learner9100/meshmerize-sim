@@ -9,7 +9,7 @@ TESTS    := $(patsubst tests/%.cpp,$(BUILD)/%,$(wildcard tests/test_*.cpp))
 test: $(TESTS)
 > @for t in $(TESTS); do ./$$t || exit 1; done
 
-$(BUILD)/%: tests/%.cpp $(wildcard core/*.h) | $(BUILD)
+$(BUILD)/%: tests/%.cpp $(wildcard core/*.h sim/*.h) | $(BUILD)
 > $(CXX) $(CXXFLAGS) $< -o $@
 
 $(BUILD):
