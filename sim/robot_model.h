@@ -4,8 +4,7 @@
 #include <cstdlib>
 #include "cost.h"
 
-// Placeholder numbers. Nobody has measured this robot yet; see README
-// "Calibration" for how to replace them with real values.
+// placeholders, nobody has measured this robot yet (README: Calibration)
 inline CostModel dryRunModel(){
     CostModel m;
     m.mm_per_s = 500;
@@ -24,10 +23,9 @@ inline CostModel actualRunModel(){
     return m;
 }
 
-// Dead-reckoning quality. 0/0 = perfect odometry.
 struct OdomParams{
-    double scale_err = 0.0;   // +0.02: the robot believes it drove 2% further than it did
-    double noise = 0.0;       // random error per move, up to noise * distance, each axis
+    double scale_err = 0.0;   // 0.02 = believes it drove 2% further
+    double noise = 0.0;       // random error per move, fraction of distance
     unsigned int seed = 1;
 };
 
@@ -39,8 +37,8 @@ struct RobotConfig{
     int merge_mm = 100;
 };
 
-// Reads "key = value" lines, '#' starts a comment. Returns the first bad
-// line number, 0 on success, -1 if the file cannot be opened.
+// "key = value" lines, # comments. Returns 0, the bad line number, -1 if
+// the file is missing, -2 for nonsense values.
 inline int loadRobotConfig(const char* path, RobotConfig& cfg){
     FILE* f = std::fopen(path, "r");
     if(!f) return -1;

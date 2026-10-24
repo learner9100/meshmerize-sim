@@ -3,8 +3,6 @@
 #include "maze_gen.h"
 #include "solver.h"
 
-// Text rendering of a grid maze. Each cell shows up to two marks: an
-// overlay (route, trace) and what the cell is (S, E, C).
 struct Overlay{
     char mark[MAX_GRID][MAX_GRID];
     Overlay(){ clear(); }
@@ -14,7 +12,7 @@ struct Overlay{
     }
 };
 
-// Walk the straight corridor between two graph nodes and mark every cell.
+// corridors between nodes are straight, so just step from a towards b
 inline void markCorridor(const MazeGraph& g, int a, int b, int cell_mm, Overlay& o, char c, bool keep_existing){
     int x = g.node(a).x_mm / cell_mm;
     int y = g.node(a).y_mm / cell_mm;

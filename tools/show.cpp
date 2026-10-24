@@ -1,10 +1,7 @@
-// show: look at one maze, the true shortest route and, if you ask, what a
-// strategy does on it.
+// show: one maze, the true shortest route and what a strategy does on it
 //
 //   show --seed 7
-//   show --seed 7 --strategy prune
-//   show --seed 7 --all
-//   show --seed 7 --size 12 12 --loops 5 --checkpoints 3 --robot robot.cfg
+//   show --seed 7 --strategy prune --all
 
 #include <cstdio>
 #include <cstring>
@@ -146,7 +143,7 @@ int main(int argc, char** argv){
             return 2;
         }
 
-        // replay the dry run here as well so we can draw the trace
+        // replay the dry run here too so we can draw the trace
         static MazeGraph known;
         static Explorer explorer;
         TimedWalker dry(truth, start, setup.robot.dry);
@@ -166,7 +163,6 @@ int main(int argc, char** argv){
         Overlay t;
         markTrace(truth, dry.trace(), dry.traceLen(), cell, t, '.');
         if(res.end_found && finder.find(known, res.start, res.end, setup.metric, by_time)){
-            // map the known route back onto true cells via the replay trace
             TimedWalker run(truth, start, setup.robot.run);
             int cmds[MAX_NODES];
             const int n = pathToCommands(known, by_time, cmds, MAX_NODES);

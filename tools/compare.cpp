@@ -1,8 +1,6 @@
-// compare: run every strategy over many random mazes and print the numbers.
+// compare: every strategy over many random mazes
 //
-//   compare
-//   compare --seeds 1000 --size 12 12 --loops 6 --checkpoints 4
-//   compare --robot robot.cfg --csv results.csv
+//   compare --seeds 1000 --size 12 12 --loops 6 --robot robot.cfg --csv out.csv
 
 #include <cstdio>
 #include <cstring>

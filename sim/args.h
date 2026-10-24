@@ -3,8 +3,7 @@
 #include <cstdlib>
 #include <cstdio>
 
-// Just enough command line parsing for the tools: --flag, --flag value,
-// --flag v1 v2. Unknown flags are reported by the caller via check().
+// --flag, --flag value, --flag v1 v2
 struct Args{
     int argc;
     char** argv;
@@ -36,7 +35,6 @@ struct Args{
         return argv[i + 1];
     }
 
-    // Every argv that starts with "--" must be one of `known`.
     bool onlyKnown(const char* const* known, int n) const {
         bool ok = true;
         for(int i=1;i<argc;i++){

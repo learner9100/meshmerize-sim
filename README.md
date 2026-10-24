@@ -1,30 +1,103 @@
 # meshmerize-sim
 
-A small, dependency-free C++17 simulator and strategy lab for the
-**Meshmerize** line-maze competition (Techfest, IIT Bombay).
-
-It answers one question with numbers instead of opinions: *how much should
-the robot explore during the Dry Run?* Every second of exploring costs a
-point; missing the shortest path costs about 160. The simulator plays whole
-attempts (Dry Run + Actual Run, official scoring) on hundreds of random mazes
-and tells you which exploration policy wins, and when.
-
-The maze logic in `core/` is written so that the very same files compile
-for the ESP32 later: no heap, no STL containers, no iostream, integers in
-millimetres.
+A maze-solving brain for a Meshmerize line-following robot, plus the
+simulator that proves it works before you have a working robot.
 
 ```
- make test       build and run every test (zero warnings expected)
- make show       draw one maze, the true shortest route and a strategy's run
- make compare    score every strategy over hundreds of mazes
+ PC                                          ESP32
+ make test       run the tests               make firmware   compile the robot
+ make show       look at one maze            make flash      upload it
+ make compare    which strategy scores best  make monitor    serial test menu
 ```
 
-Requirements: `g++` (C++17) and GNU `make`. Nothing else. Developed against
-g++ 11 on Ubuntu 22.04 and g++ 16 (MSYS2) on Windows.
+Needs only `g++` and `make` on the PC side. The robot side needs
+PlatformIO (`pip install platformio`), nothing else.
 
 ---
 
-## Tutorial
+## Why this exists, in plain words
+
+In Meshmerize your robot gets two runs. First a **Dry Run**: it drives
+through an unknown maze of white lines, finds the End and remembers what it
+saw. Then an **Actual Run**: back at the Start, it must drive the
+**shortest** route to the End. Points come from finishing both runs, from
+being fast, and most of all from really driving the shortest route: that
+alone is worth about 160 of the roughly 400 points on offer.
+
+The trap: during the Dry Run every second costs one point, so you want to
+stop exploring early. But if you stop too early you may never see the
+shorter corridor two junctions over, and then the 160 points are gone.
+When is it worth exploring more? Nobody can answer that by staring at one
+maze. You answer it by playing thousands of mazes, and that is what a
+simulator is for.
+
+This project gives you three things:
+
+1. **The brain** (`core/`): code that explores a maze, builds a map, finds
+   the shortest route and converts it to turn commands. Written so the
+   exact same files run in the simulator and on the ESP32. No "it worked
+   on the PC but the robot does something else".
+2. **The simulator** (`sim/`, `tools/`): random mazes, a model of your
+   robot's speed, the official scoring formula, and a batch runner that
+   compares exploration strategies over hundreds of mazes.
+3. **The firmware** (`firmware/`): a ready ESP32 project with a serial
+   test menu for bringing up the sensors, motors and encoders one at a
+   time, and the competition flow (button, Dry Run, red LED, Actual Run).
+   You edit one file to describe your hardware.
+
+You do not need to understand the brain to use it. You need to be able to
+read the result tables, tune your robot in the test menu, and change one
+line (`POLICY`) to pick a strategy.
+
+---
+
+## If you are the hardware person
+
+You know your sensors, your motors and your ESP32. Here is the whole
+workflow without touching the maze code:
+
+```
+1. firmware/src/config.h     write down your pins and wiring
+2. make flash; make monitor  bring up IR, motors, encoders, line following, turns
+                             with the numbered menu tests; each one tells you
+                             which constant to change
+3. robot.cfg                 copy the speeds you measured into the simulator
+4. make compare ROBOT=robot.cfg   see which strategy wins for YOUR robot
+5. config.h: POLICY = ...    set that strategy, flash again
+6. tape a test maze, press the button
+```
+
+The step-by-step bring-up guide, with what each test prints and what to do
+about it, is in [firmware/README.md](firmware/README.md).
+
+### Where your hardware knowledge goes
+
+| I want to... | edit |
+|---|---|
+| set pins, sensor count, analog/digital IR, motor wiring, wheel size, speeds, PID, strategy | [firmware/src/config.h](firmware/src/config.h) |
+| use a different IR array, change how "I see a branch" is decided | [firmware/src/sensors.h](firmware/src/sensors.h) |
+| use a different motor driver (DRV8833, L298N) or encoder scheme | [firmware/src/motors.h](firmware/src/motors.h) |
+| change how the robot follows the line, detects junctions, turns | [firmware/src/drive.h](firmware/src/drive.h) |
+| add my own test to the serial menu | [firmware/src/menu.h](firmware/src/menu.h) |
+
+The IR array is assumed to be an 8-channel analog reflectance array
+(QTR-8A style) because that is the most common choice, but it is fully
+configurable: sensor count, pins, analog or digital, which way the readings
+go on white, spacing, how many outer sensors must light up to count as a
+branch, and the calibration is done live from the menu and stored in
+flash. If you end up with a 5-sensor digital bar, change four constants.
+
+### What the firmware promises and what it does not
+
+The firmware **compiles** for `esp32dev` (Arduino core 3.x, 31% RAM) and
+the maze logic in it is the same code that passes 260 checks on the PC.
+It has **not been driven on a real robot yet**. Expect to spend the first
+afternoon with hardware tuning `config.h` and probably the junction
+detection in `drive.h`. The serial menu exists exactly for that afternoon.
+
+---
+
+## Tutorial (PC side)
 
 ### 1. Build and run the tests
 
@@ -32,9 +105,8 @@ g++ 11 on Ubuntu 22.04 and g++ 16 (MSYS2) on Windows.
 make test
 ```
 
-Every test prints `name: OK` or `name: FAIL`, and `make` stops at the first
-failing test program. The names are written so that a failure tells you
-exactly what went wrong ("prune: visits A but not B: FAIL").
+Prints `name: OK` for 260 checks. Stops at the first `FAIL`, and the
+name tells you what broke ("prune: visits A but not B").
 
 ### 2. Look at a maze
 
@@ -46,7 +118,6 @@ make show SEED=4 W=6 H=6 LOOPS=2
 maze seed 4, 6x6 cells of 230 mm, 2 loop(s), 0 checkpoint(s)
 25 nodes, 26 edges, 37 passages
 true shortest: 2760 mm, 8 turns, 7.71 s at Actual Run pace
-fastest route is the same as the shortest one
 
 +---+---+---+---+---+---+
 |*S  *                  |
@@ -61,15 +132,13 @@ fastest route is the same as the shortest one
 +   +---+---+   +---+   +
 |           |*   *   *E |
 +---+---+---+---+---+---+
-S start, E end, C checkpoint, * shortest route
 route as driven: E1 S1 W1 S1 E1 S2 E2 S1 E2   (direction + cells, 8 turns)
 ```
 
-`SEED` picks the maze (same seed, same maze, on every machine). `LOOPS` is
-the number of extra wall openings; each one adds exactly one loop, so
-`LOOPS=0` is a perfect maze with a single route between any two cells.
+Same seed, same maze, on every computer. `LOOPS` adds wall openings; each
+one creates exactly one loop. `LOOPS=0` is a maze with a single route.
 
-### 3. Watch a strategy play
+### 3. Watch a strategy drive it
 
 ```sh
 make show SEED=4 W=6 H=6 LOOPS=2 STRAT=first-path
@@ -78,9 +147,7 @@ make show SEED=4 W=6 H=6 LOOPS=2 STRAT=first-path
 ```
 == first-path: stop the moment End is seen (depth-first) ==
   dry run     14.56 s  reached End
-  End seen    14.56 s into the dry run
   actual       9.78 s  reached End, route 3680 mm vs true 2760 mm
-  map       13 nodes, 12 edges, drove 3.68 m, status 0
   points    A 0 + B 30 + C 165.44 + S 0 + L 5 + T 0.00 - P 0 = 200.44
 
 +---+---+---+---+---+---+
@@ -96,30 +163,24 @@ make show SEED=4 W=6 H=6 LOOPS=2 STRAT=first-path
 +   +---+---+   +---+   +
 |           |        *E |
 +---+---+---+---+---+---+
-. explored in the dry run, * route retraced in the actual run
 3 exit(s) were left untried
 ```
 
-The robot found End after 14.6 s and stopped. It then retraced a 3680 mm
-route, but the shortest is 2760 mm, so `S` (30) and `T` (about 140) are
-gone. Add `EXTRA=--all` to see every strategy on the same maze:
+It found End in 14.6 s, stopped, and retraced a 3680 mm route. The real
+shortest is 2760 mm, so S and T (about 140 points) are lost. Add
+`EXTRA=--all` to see everyone on the same maze:
 
 ```
 strategy          total   dry s   run s short  sure drove m
 first-path       200.44   14.56    9.78    no    no    3.68
 dfs-full         332.61   54.68    7.71   yes   yes   13.34
-nearest-full     332.61   54.68    7.71   yes   yes   13.34
-prune            318.47   68.82    7.71   yes   yes   16.56
 prune-grid       338.19   49.10    7.71   yes   yes   11.50
-prune-guard      338.19   49.10    7.71   yes   yes   11.50
-nearest-guard    332.61   54.68    7.71   yes   yes   13.34
 wall-left        200.44   14.56    9.78    no    no    3.68
 ```
 
-Forty extra seconds of exploring bought 138 points here. On another maze
-(`SEED=5`) every strategy scores the same because the first route found is
-already the shortest. That is exactly why one maze proves nothing and the
-next step exists.
+Forty seconds more exploring bought 138 points here. Try `SEED=5`: there
+every strategy scores the same because the first route is already the
+shortest. One maze proves nothing, hence the next step.
 
 ### 4. Compare strategies over many mazes
 
@@ -128,9 +189,6 @@ make compare SEEDS=300
 ```
 
 ```
-300 mazes (0 skipped), 68.4 nodes each, true shortest 7.82 m on average
-fastest route differs from shortest route in 1.7% of mazes
-
 strategy          score      sd  short%   sure%   dry s   >180%   run s walked m
 first-path        233.4    84.8    53.7     0.0    67.2     0.0    22.6     16.6
 dfs-full          202.2    13.2   100.0   100.0   181.6    51.7    19.9     44.1
@@ -142,281 +200,190 @@ nearest-guard     207.8    44.5    91.3    24.7   153.7     0.0    20.2     37.3
 wall-left         212.4    87.0    37.3     0.0    62.7     0.0    24.1     15.6
 ```
 
-Columns: `score` mean total points; `sd` spread between mazes; `short%` how
-often the Actual Run retraced a route of optimal length; `sure%` how often
-the explorer could *prove* nothing shorter was left; `dry s` mean Dry Run
-time; `>180%` how often the Dry Run overran 3 minutes; `walked m` metres
-driven in the Dry Run.
+`score` mean points; `sd` how much it swings between mazes; `short%` how
+often the robot really drove a shortest route; `sure%` how often it could
+*prove* nothing shorter was left; `dry s` Dry Run time; `>180%` how often
+it overran the 3 minutes; `walked m` metres driven exploring.
 
 Knobs: `SEEDS`, `W`, `H`, `LOOPS`, `CPS` (checkpoints), `ROBOT=robot.cfg`,
-`CSV=out.csv` for one row per attempt, and `EXTRA="--margin 5 --by-time"`
-for anything else (`./build/compare --help` lists all options).
+`CSV=out.csv`, `EXTRA="--margin 5 --by-time"`. `./build/compare --help`
+lists everything.
 
-### 5. Make the robot yours
+### 5. Put your robot's numbers in
 
-All timing lives in [robot.cfg](robot.cfg): average speed, time lost at a
-node, at a corner, at a U-turn, separately for the Dry Run and the Actual
-Run. The shipped numbers are **placeholders**, not measurements. Edit the
-file and run
+[robot.cfg](robot.cfg) holds how fast your robot drives, how long it loses
+at a junction, a corner and a dead-end turnaround, separately for the Dry
+Run and the Actual Run. The shipped values are **guesses**. Replace them
+with what you measured (procedure below) and run `make compare
+ROBOT=robot.cfg`. Until then, trust the *ranking* of strategies, not the
+seconds.
 
-```sh
-make compare ROBOT=robot.cfg
-```
+### 6. Make the simulated robot as clumsy as the real one
 
-Until the numbers are measured on the real car (see *Calibration*), use the
-results to compare strategies with each other, not to predict seconds.
-
-### 6. Turn on realistic odometry
-
-By default the simulator tells the explorer which node it is standing on.
-A real robot cannot know that; it has to recognise places from its own
-drifting position estimate. Set `odom.enabled = 1` in `robot.cfg` and the
-explorer switches to position-based recognition with the drift and merge
-radius you configure. Expect two failure modes, both visible in the output:
-
-- **missed loop closure** (drift larger than the merge radius): the robot
-  maps the same place twice. It wastes time but the route it finally
-  drives is still physically valid.
-- **false merge** (two real junctions closer than the merge radius, or a
-  big drift): the map is wrong. The simulator reports `LostPosition` and a
-  failed Dry Run instead of pretending the route works.
-
-`tests/test_odometry.cpp` demonstrates both.
+Set `odom.enabled = 1` in `robot.cfg`. Now the explorer is no longer told
+which junction it is standing on; it has to recognise places from its
+drifting wheel-encoder position, like the real robot. Two things can go
+wrong, and both show up in the results instead of being hidden: a missed
+loop (same place mapped twice, costs time) and a false merge (two places
+confused, reported as a failed Dry Run). `odom.merge_mm` is the knob.
 
 ### 7. Write your own strategy
 
-Two ways.
-
-**Configure the built-in explorer.** `ExploreConfig` in
-[core/explorer.h](core/explorer.h) has the knobs: stop at End or not,
-frontier order (deepest = classic DFS, nearest = least driving), lower-bound
-pruning, a time guard, and the position-recognition mode. Add a line in
-`builtinStrategies()` in [sim/strategies.h](sim/strategies.h).
-
-**Bring your own algorithm.** Write a function
+Two ways. **Configure the built-in explorer**: `ExploreConfig` in
+[core/explorer.h](core/explorer.h) has the switches (stop at End, frontier
+order, pruning, time guard); add a line to `builtinStrategies()` in
+[sim/strategies.h](sim/strategies.h). **Or bring your own algorithm**: write
 
 ```cpp
 ExploreResult myExplore(TimedWalker& w, MazeGraph& known);
 ```
 
-that drives the walker during the Dry Run and records what it learns in
-`known`. Add it as `Strategy{"my-name", "what it does", ExploreConfig{}, myExplore}`
-in `tools/compare.cpp` (and `tools/show.cpp`). The simulator scores it
-exactly like the built-ins: it takes the shortest route from your map,
-converts it to `go()` commands and replays them on the real maze. If your
-map is wrong, the replay goes wrong, and the score shows it.
-[examples/wall_follower.h](examples/wall_follower.h) is a complete example
-(left-hand wall following, 60 lines).
+drive `w` during the Dry Run, record what you learn in `known`, and add it
+as `Strategy{"my-name", "what it does", ExploreConfig{}, myExplore}` in
+`tools/compare.cpp`. It is scored like everyone else: the simulator takes
+the shortest route from *your* map, converts it to commands and replays
+them on the real maze. A wrong map shows up as a failed run, not as a good
+score. [examples/wall_follower.h](examples/wall_follower.h) is a complete
+60-line example.
 
-The interface you drive is the **Walker**:
+The thing you drive is the **Walker**, the same interface the real robot
+implements in `firmware/src/robot_walker.h`:
 
 | call | meaning |
 |---|---|
-| `here()` | id of the current node, or `-1` when ids are not available (odometry mode) |
+| `here()` | node id, or `-1` when the robot cannot know (odometry mode, real robot) |
 | `type()` | `Start`, `End`, `CheckPoint`, `DeadEnd`, `Normal` |
-| `exitCount()` | number of corridors leaving this node |
-| `backExit()` | index of the corridor we just arrived through (`-1` at the start) |
-| `go(k)` | drive through corridor `k`; returns its length in mm or `-1` and stays put |
-| `totalMm()` | distance driven so far |
-| `xMm()`, `yMm()` | position estimate of the current node |
-| `heading(k)` | compass direction of exit `k` (0 N, 1 E, 2 S, 3 W), simulator extension |
+| `exitCount()` | corridors leaving this node |
+| `backExit()` | index of the corridor we arrived through (`-1` at Start) |
+| `go(k)` | drive through corridor `k`; returns mm driven, or `-1` and stays put |
+| `totalMm()` | distance so far |
+| `xMm()`, `yMm()` | position estimate of this node |
 
-For the Actual Run to work, record for every edge in `known` which `go()`
-argument drives through it: `known.addEdge(a, b, len, cmd_at_a, cmd_at_b)`.
-
-Rules for a fair comparison: no randomness except through `Rng` with a
-fixed seed, no peeking at the truth graph, and the function must leave the
-robot standing on End when it returns.
+Record `known.addEdge(a, b, len, cmd_at_a, cmd_at_b)` so the route can be
+replayed. No randomness except `Rng` with a fixed seed, no peeking at the
+true maze, finish standing on End.
 
 ---
 
-## What the numbers say so far
+## What the numbers say (placeholder robot, 10x10, 3 loops)
 
-With the placeholder robot (0.5 m/s exploring, 0.3 s per node, 0.4 s per
-corner, 1 s per U-turn) on 10x10 mazes of 230 mm cells with 3 loops:
+- **Stopping at the first route is a coin flip.** 54% shortest. When it
+  misses, ~140 points are gone. Biggest spread of all.
+- **Mapping everything is safe but slow.** Always shortest, but the Dry
+  Run averages 180 s and overruns 3 minutes in half the mazes.
+- **Pruning is the sweet spot.** Once End is seen, skip every unexplored
+  exit that cannot possibly lead to a shorter route (known distance to it
+  plus straight line to End is already too long). `prune-grid` keeps the
+  100% guarantee while driving 25% less. Best scorer here.
+- **The time guard loses points in this setup**: giving up the search
+  forfeits ~160 to protect at most ~45. This depends on a rule nobody has
+  confirmed: if overrunning the Dry Run only zeroes C, do not guard; if it
+  voids the attempt, guard. **Ask the organisers.**
+- **Maze size dominates.** On 8x8 nobody overruns and pruning reaches 296
+  vs 268 for first-path. On 12x12 the placeholder robot often cannot even
+  find End in time. Cell size matters more than algorithm choice.
+- **Distance vs time** routes differ in under 2% of mazes.
 
-- **Stopping at the first route is a coin flip.** `first-path` retraces the
-  shortest route in 54% of mazes. When it misses, about 140 points are gone.
-  Its spread (sd 85) is the largest of all strategies.
-- **Mapping everything is safe but slow.** `dfs-full` and `nearest-full`
-  always find the shortest route, but the Dry Run averages 180 s and
-  overruns 3 minutes in roughly half the mazes, which zeroes `C`.
-- **Pruning keeps the guarantee and saves time.** Once End is seen, any
-  unexplored exit whose `known distance from Start + straight line to End`
-  cannot beat the best known route is skipped. `prune-grid` (Manhattan
-  bound, valid for 90-degree mazes) still finds the shortest route 100% of
-  the time while driving 25% less than full mapping. It is the best scorer
-  in this setup.
-- **The time guard trades the wrong thing here.** `prune-guard` never
-  overruns, but giving up the search forfeits `S + T` (about 160) to save
-  `C` (at most 180 minus the time already spent, usually far less). With a
-  smaller margin (`EXTRA="--margin 5"`) it gets closer. **This hinges on an
-  unknown rule**: if overrunning the Dry Run only costs `C`, do not guard;
-  if it voids the attempt, guard. Ask the organisers.
-- **The maze size dominates everything.** On 8x8 mazes nobody overruns and
-  `prune-grid`/`prune-guard` reach 296 points vs 268 for `first-path`.
-  On 12x12 the placeholder robot cannot even find End in time on many
-  mazes. The real cell size matters more than any algorithm choice.
-- **Distance vs time.** The fastest route (counting turns) differs from the
-  shortest one in under 2% of mazes, so judging "shortest" by distance or
-  by time rarely matters. `--by-time` lets you pick the route by time and
-  see what it costs when the judges measure distance.
-
-Re-run `make compare` after calibrating `robot.cfg`; conclusions may move.
+Re-run after calibration; conclusions may move.
 
 ---
 
-## How it works
+## Calibration (turn guesses into measurements)
+
+1. **Speed**: 2 m straight tape line, time it in Dry Run mode and in
+   Actual Run mode. `mm_per_s = 2000 / seconds`.
+2. **Node cost**: add a T-junction halfway, time again. The difference is
+   `node_ms`.
+3. **Corner cost**: replace the T with a 90-degree corner. Difference
+   minus `node_ms` is `turn_ms`.
+4. **U-turn cost**: a dead end at the far end, out and back. The leftover
+   after subtracting the straight parts is `uturn_ms`.
+5. **Odometry**: drive 2 m ten times and read the robot's own distance
+   (menu test 5). Mean relative error is `scale_err`, spread is `noise`.
+   `merge_mm` must be well under half a cell and well over the drift along
+   the longest corridor.
+
+Put the numbers in **both** `robot.cfg` (simulator) and
+`firmware/src/config.h` (robot), with the date as a comment.
+
+---
+
+## How it works, briefly
 
 ```mermaid
 flowchart LR
-    gen[maze_gen: random grid] --> truth[(truth graph)]
-    truth --> walker[TimedWalker: clock, trace, odometry]
-    walker <--> explorer[Explorer / your function]
-    explorer --> known[(known map)]
-    known --> solver[PathFinder: Dijkstra]
-    solver --> cmds[go commands]
-    cmds --> replay[Actual Run replay on truth]
-    replay --> score[ScoreBreakdown]
+    gen[random maze] --> truth[(true maze)]
+    truth --> walker[simulated robot: clock, odometry]
+    walker <--> brain[Explorer  core/]
+    brain --> known[(map)]
+    known --> solver[PathFinder  core/]
+    solver --> cmds[turn commands]
+    cmds --> replay[Actual Run on the true maze]
+    replay --> score[official formula]
+    robot[real robot  firmware/] <--> brain
 ```
 
-**The maze is a graph, not a grid.** Nodes are Start, End, checkpoints,
-dead ends, junctions and corners; edges are corridors with a length in
-millimetres. A straight corridor is one edge however many cells long. This
-handles grid mazes, loops and (later) curved or diagonal mazes alike.
+The maze is a **graph**: junctions, corners, dead ends, Start and End are
+nodes; corridors are edges with a length in mm. Straight stretches of any
+length are one edge. That is why the same code handles grids, loops and
+later curved mazes.
 
-**Fixed memory.** `MazeGraph` holds up to 256 nodes and 512 edges in plain
-arrays (18 KB). The explorer and path finder keep their scratch in
-member arrays (15.4 KB and 16.3 KB). On the ESP32 declare each of them
-`static`; never as a local variable.
+Everything uses **fixed-size arrays**, no heap: `MazeGraph` 18 KB,
+`Explorer` 15 KB, `PathFinder` 16 KB. On the ESP32 they are globals.
 
-**The explorer** ([core/explorer.h](core/explorer.h)) keeps a list of
-untried exits ("frontier"). Each round it picks one (deepest or nearest),
-drives there along the shortest known corridors, takes the exit and records
-the node it finds. Pruning drops frontier entries that cannot hold a shorter
-route (re-evaluated every round, so it is sound). The time guard estimates
-`elapsed + drive to frontier + drive to End + margin` pessimistically
-(every node priced as a corner) and refuses frontiers that would not fit.
-When nothing is left the robot drives to End, as the rules require. Errors
-(`GraphFull`, `WalkerError`, `LostPosition`) are reported, never swallowed.
+The **Explorer** keeps a list of untried exits. Each round: pick one
+(deepest = classic DFS, or nearest), drive there along known corridors,
+take it, record what is found. Pruning drops exits that cannot hold a
+shorter route; the time guard refuses exits that would not fit in the
+remaining time (estimated pessimistically). When nothing is left it drives
+to End. Errors (`GraphFull`, `WalkerError`, `LostPosition`) are reported,
+never swallowed.
 
-**The solver** ([core/solver.h](core/solver.h)) runs Dijkstra over
-`(node, exit arrived through)` so a corner can be priced from where the
-robot came. The default metric is distance, with fewer turns as tie-break;
-`Metric::by_time` prices the route with the robot model instead.
+The **PathFinder** is Dijkstra over *(node, direction arrived from)* so a
+corner can be priced; ties go to fewer turns.
 
-**Scoring** ([sim/scoring.h](sim/scoring.h)) implements the published
-formula `A + B + C + S + L + T - P`. The Dry Run clock stops when the robot
-stands on End. The Actual Run replays the chosen route on the *true* maze
-with a fresh clock; "shortest" means equal in length to the true optimum.
+**Scoring** implements `A + B + C + S + L + T - P` from the Techfest page.
+The Actual Run is really replayed on the true maze.
 
 ---
 
-## Assumptions (things the rules do not say)
+## Assumptions (rules do not say; change in one place)
 
-| Unknown | Assumed here | Where |
+| Unknown | Assumed | Where |
 |---|---|---|
 | Maze layout | grid, 90-degree corridors, loops possible | `core/maze_gen.h` |
-| Cell size / grid | 230 mm, 10x10 (configurable) | `W`, `H`, `--cell` |
-| Robot timing | placeholder speeds and delays | `robot.cfg` |
-| Meaning of "shortest" | distance, judges compare length | `Metric` default |
-| When the Dry Run clock stops | on arrival at End | `playAttemptWith` |
-| Dry Run not completed | no `B`, `C`, `L` | `playAttemptWith` |
-| Dry Run over 180 s | `C = 0`, overrun shortens the Actual Run limit | `playAttemptWith` |
-| Actual Run over its limit | run failed, no `S`, `T` | `playAttemptWith` |
-| Checkpoints | random cells, counted once across both runs | `--checkpoints` |
-| Penalties `P` | a number you pass in, default 0 | `AttemptSetup::penalties` |
+| Cell size | 230 mm | `W`, `H`, `--cell`; `CELL_MM` in firmware |
+| Robot timing | placeholders | `robot.cfg`, `config.h` |
+| What End looks like | all sensors on line for 60 mm | `END_MARK_MM`, `drive.h` |
+| Exits at Start | straight only | `START_EXITS` |
+| "Shortest" | by distance | `Metric` default |
+| Dry Run clock stops | on arrival at End | `sim/scoring.h` |
+| Dry Run not completed | no B, C, L | `sim/scoring.h` |
+| Dry Run over 180 s | C = 0, overrun shortens the Actual Run | `sim/scoring.h` |
+| Checkpoints | random cells, counted once over both runs | `--checkpoints` |
+| Penalties P | a number you pass in, default 0 | `AttemptSetup::penalties` |
 | Restarts | not modelled | - |
-| Carrying the robot back to Start | takes zero time | - |
-| Robot exit numbering | compass order N, E, S, W | `sortExitsByCompass` |
-
-When an organiser answers one of these, change the one place listed and
-re-run `make compare`.
-
----
-
-## Calibration
-
-Replace the placeholders in `robot.cfg` with measurements:
-
-1. **Speed.** Tape a 2 m straight line. Time the robot over it in Dry Run
-   mode and in Actual Run mode (several runs each). `mm_per_s = 2000 / seconds`.
-2. **Node cost.** Add one T-junction in the middle of the same line and
-   time again. `node_ms = (new time - straight time) * 1000`.
-3. **Corner cost.** Replace the junction with a 90-degree corner (the
-   robot must turn). `turn_ms = (corner time - straight time) * 1000 - node_ms`.
-4. **U-turn cost.** A dead end at the far end: time out and back, subtract
-   the straight-line parts. `uturn_ms = remainder * 1000 - node_ms`.
-5. **Odometry.** Drive 2 m straight ten times and read the robot's own
-   distance estimate: `scale_err` is the mean relative error, `noise` the
-   spread. Pick `merge_mm` well below half the smallest cell size and well
-   above the drift accumulated along the longest corridor.
-
-Write the date and conditions as a comment in the file.
-
----
-
-## ESP32
-
-`esp32_bench/` is a PlatformIO sketch that compiles `core/` unchanged,
-turns WiFi and Bluetooth off, runs the explorer and the solver on generated
-mazes and prints compute time and stack use. **It has not been flashed by
-anyone yet**; treat it as a starting point and report what breaks.
-
-Notes for firmware use of `core/`:
-
-- make `MazeGraph`, `Explorer` and `PathFinder` globals or statics;
-- `long` is 32-bit on the ESP32: keep positions under about 30 m;
-- the `Walker` the firmware provides must number a node's exits the same
-  way every time the robot arrives there (compass order is the natural
-  choice).
 
 ---
 
 ## Layout
 
 ```
-core/      portable C++17, compiles for the robot
-  maze_graph.h   nodes, edges, positions, exit commands
-  cost.h         CostModel, turn detection, integer sqrt
-  solver.h       PathFinder (turn-aware Dijkstra), pathToCommands
-  explorer.h     Explorer: frontier search, pruning, guard, position mode
-  rng.h          xorshift32
-  maze_gen.h     GridMaze, generateGrid, placeCheckpoints, buildGraph
-sim/       PC only
-  walker.h       Walker: the robot's keyhole into the hidden true maze
-  timed_walker.h TimedWalker: clock, visit trace, odometry drift
-  robot_model.h  placeholder models, robot.cfg loader
-  scoring.h      playAttempt / playAttemptWith, official formula
-  strategies.h   Strategy, builtinStrategies, playStrategy
-  batch.h        runBatch, printStats
-  ascii.h        maze drawing
-  args.h         command line parsing
-tools/     show.cpp, compare.cpp
-examples/  wall_follower.h: a complete custom strategy
-tests/     one test_*.cpp per module, run by make test
-esp32_bench/  PlatformIO benchmark sketch (unverified)
+core/       portable C++17, runs on the PC and on the ESP32 unchanged
+sim/        PC-only: simulated robot, scoring, strategies, batch, ASCII view
+tools/      show.cpp, compare.cpp
+tests/      one test_*.cpp per module, `make test`
+examples/   wall_follower.h, a complete custom strategy
+firmware/   PlatformIO project for the robot (see firmware/README.md)
+robot.cfg   the simulated robot's timing and odometry
 ```
 
-### Conventions
+Conventions: `core/` has no iostream, STL containers, heap or exceptions;
+lengths are integer mm, time integer ms; failed calls return `-1`/`false`
+and change nothing; every feature has tests including bad input and at
+least one implementation-independent invariant; test labels say what is
+checked; warning-free build; no new dependencies.
 
-- `core/` has no iostream, no STL containers, no heap, no exceptions.
-- Lengths are integer millimetres; the simulator clock is integer
-  milliseconds; floating point only for scores and odometry noise.
-- Failed operations return `-1` or `false` and change nothing.
-- Every feature ships with tests for the normal case, edge cases, bad input
-  and at least one invariant that does not depend on the implementation
-  (`edges == nodes - 1` for a perfect maze, "guaranteed implies shortest").
-- Test labels say what the condition checks. If a label is wrong, that is a
-  bug.
-- Build must stay warning-free with `-Wall -Wextra -Wpedantic`.
-- No new dependencies.
-
-### Not done yet
-
-- restarts (max 3, return to last checkpoint / to Start) and penalties:
-  only the `P` input exists;
-- motor lag, acceleration, sensor noise: the time model is per move, which
-  is enough to rank strategies but not to predict lap times;
-- strategies that detour for checkpoints on purpose;
-- hardware-in-the-loop over serial.
+Not done yet: restarts and penalties (only the `P` input exists); motor
+lag / acceleration modelling; checkpoint-seeking strategies;
+hardware-in-the-loop over serial; and, above all, a drive on a real robot.

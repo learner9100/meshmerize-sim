@@ -10,7 +10,7 @@ struct BatchParams{
     int seeds = 500;
     int width = 10;
     int height = 10;
-    int loops = 3;            // extra openings per maze
+    int loops = 3;
     int checkpoints = 0;
     int cell_mm = 230;
     AttemptSetup setup;
@@ -20,10 +20,10 @@ struct StrategyStats{
     const char* name = "";
     int attempts = 0;
     double mean_score = 0, sd_score = 0;
-    double pct_shortest = 0;      // Actual Run retraced a route of optimal length
-    double pct_guaranteed = 0;    // explorer proved the route optimal before leaving
+    double pct_shortest = 0;
+    double pct_guaranteed = 0;
     double pct_dry_done = 0;
-    double pct_dry_over = 0;      // Dry Run longer than the limit
+    double pct_dry_over = 0;
     double mean_dry_s = 0, mean_run_s = 0;
     double mean_walked_m = 0;
     double mean_checkpoints = 0;
@@ -31,14 +31,13 @@ struct StrategyStats{
 
 struct BatchSummary{
     int mazes = 0;
-    int skipped = 0;              // generator or graph capacity said no
+    int skipped = 0;
     double mean_nodes = 0;
     double mean_true_m = 0;
-    double pct_metric_differs = 0; // time-optimal route differs from distance-optimal
+    double pct_metric_differs = 0;   // fastest route != shortest route
 };
 
-// Runs every strategy on every seed. Deterministic: same params, same table.
-// If csv is not null one row per (seed, strategy) is appended to it.
+// same params, same table; csv gets one row per attempt if given
 inline BatchSummary runBatch(const BatchParams& p, const Strategy* strats, int nstrat,
                              StrategyStats* out, FILE* csv = nullptr){
     static GridMaze maze;

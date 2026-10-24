@@ -5,60 +5,56 @@
 
 enum class ExploreStatus {
     Ok,
-    GraphFull,      // known map ran out of nodes/edges/exits
-    WalkerError,    // go() refused a command or here() was unusable
-    LostPosition    // map and reality disagree (only possible without trusted ids)
+    GraphFull,
+    WalkerError,    // go() refused or here() unusable
+    LostPosition    // map and reality disagree (position mode only)
 };
 
-// Which unexplored exit to go to next when the current node has none left.
 enum class Frontier {
-    Deepest,   // classic depth-first backtracking
+    Deepest,   // classic DFS backtracking
     Nearest    // least driving from where we stand
 };
 
 struct ExploreConfig{
-    bool stop_at_end = false;          // leave the moment End is seen
+    bool stop_at_end = false;
     Frontier order = Frontier::Deepest;
 
-    // Skip branches whose lower bound cannot beat the best known route.
-    // Needs node positions. Manhattan is tighter but only valid for mazes
-    // with 90 degree corridors; the straight line is always valid.
+    // skip branches that cannot beat the best known route (needs positions);
+    // manhattan is tighter but only valid for 90-degree mazes
     bool prune = false;
     bool manhattan = false;
 
-    // Time guard: stop exploring when the estimated finish would pass
-    // limit_ms - margin_ms. 0 = no guard. Only active once End is known.
+    // head for End when elapsed + estimate would pass limit - margin; 0 = off
     int limit_ms = 0;
     int margin_ms = 20000;
-    CostModel model;                   // the robot's belief about its own speed
+    CostModel model;
 
-    // false = recognise places by position like a real robot has to.
+    // false: recognise places by position, like a real robot has to
     bool trust_ids = true;
-    int merge_mm = 100;                // position mode: this close is "same node"
+    int merge_mm = 100;
 };
 
 struct ExploreResult{
     ExploreStatus status = ExploreStatus::Ok;
     bool end_found = false;
-    bool at_end = false;               // standing at End when done (as far as the map knows)
-    bool complete = false;             // no unexplored exit could still hold a shorter route
+    bool at_end = false;
+    bool complete = false;             // nothing unexplored could still be shorter
     int start = -1;
     int end = -1;
     int walked_mm = 0;
     int moves = 0;
-    int elapsed_ms = 0;                // explorer's own estimate from cfg.model
-    int end_found_ms = -1;             // estimate when End was first seen, -1 if never
+    int elapsed_ms = 0;                // own estimate from cfg.model
+    int end_found_ms = -1;
     int unexplored_exits = 0;
 };
 
-// Builds the known map while driving a Walker. Roughly 15 KB of state, so on
-// the ESP32 declare one Explorer static and reuse it.
+// ~15 KB of state, declare one static on the ESP32
 class Explorer{
     private:
         struct Tree{
             int dist[MAX_NODES];
             int prev[MAX_NODES];
-            int via[MAX_NODES];        // edge used to reach the node
+            int via[MAX_NODES];
             int hops[MAX_NODES];
         };
 
@@ -68,8 +64,8 @@ class Explorer{
         ExploreResult res_;
         MazeGraph* known_ = nullptr;
 
-        int to_known_[MAX_NODES];      // trusted-id mode: walker id -> known id
-        int exits_[MAX_NODES];         // walker exit count per known node
+        int to_known_[MAX_NODES];      // walker id -> known id (trusted mode)
+        int exits_[MAX_NODES];
         bool tried_[MAX_NODES][MAX_EXITS];
         bool done_[MAX_NODES];
         Tree from_at_;
@@ -78,8 +74,8 @@ class Explorer{
 
         int at_ = -1;
         int in_dx_ = 0, in_dy_ = 0;
-        int corr_x_ = 0, corr_y_ = 0;  // position mode: drift fixed at each loop closure
-        int new_x_ = 0, new_y_ = 0;    // where the last unrecognised arrival was
+        int corr_x_ = 0, corr_y_ = 0;  // drift correction, position mode
+        int new_x_ = 0, new_y_ = 0;
 
         void reset(const ExploreConfig& cfg, MazeGraph& known){
             cfg_ = cfg;
@@ -128,7 +124,7 @@ class Explorer{
             }
         }
 
-        // Pessimistic on purpose: every node on the way is priced as a corner.
+        // pessimistic on purpose: every hop priced as a corner
         int estimateMs(const Tree& t, int u) const {
             const long drive = (long)t.dist[u] * 1000 / cfg_.model.mm_per_s;
             return (int)drive + t.hops[u] * (cfg_.model.node_ms + cfg_.model.turn_ms);
@@ -152,7 +148,7 @@ class Explorer{
             res_.moves++;
         }
 
-        // Which known node is the walker standing on? -1 means "never seen".
+        // -1 means never seen before
         template<class W>
         int recognise(W& w){
             if(cfg_.trust_ids){
@@ -194,7 +190,6 @@ class Explorer{
             return id;
         }
 
-        // Drive through exit k of the current node and record what we find.
         template<class W>
         bool step(W& w, int k){
             tried_[at_][k] = true;
@@ -224,7 +219,6 @@ class Explorer{
             return true;
         }
 
-        // Follow known corridors to `target` along the shortest known route.
         template<class W>
         bool driveTo(W& w, int target){
             if(target == at_) return true;
@@ -286,7 +280,7 @@ class Explorer{
                     if(est > cfg_.limit_ms){ timed_out = true; continue; }
                 }
 
-                // Nearest: least driving, deeper node on ties. Deepest: highest id.
+                // nearest: least driving, deeper node on ties; deepest: highest id
                 const long key = cfg_.order == Frontier::Nearest
                                ? (long)from_at_.dist[u] * MAX_NODES + (MAX_NODES - 1 - u)
                                : (long)(MAX_NODES - 1 - u);
@@ -311,8 +305,7 @@ class Explorer{
             reset(cfg, known);
 
             if(recognise(w) >= 0 || res_.status != ExploreStatus::Ok){
-                // A fresh exploration must start on a fresh map.
-                if(res_.status == ExploreStatus::Ok) res_.status = ExploreStatus::WalkerError;
+                if(res_.status == ExploreStatus::Ok) res_.status = ExploreStatus::WalkerError;   // map not fresh
                 return res_;
             }
             at_ = addPlace(w);

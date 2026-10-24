@@ -9,8 +9,6 @@ static void check(const char* name, bool ok) {
     if (!ok) failures++;
 }
 
-// Position-based place recognition: what a real robot has to do because it
-// cannot read node ids off the floor.
 int main() {
     ExploreConfig full;
     full.order = Frontier::Nearest;
@@ -63,9 +61,7 @@ int main() {
     }
 
     {
-        // heavy drift with a tight merge radius: loop closures get missed
-        // (duplicate nodes) or places get confused. The simulator must show
-        // that, never a clean success.
+        // heavy drift, tight merge radius: missed loop closures or confused places
         int clean = 0, duplicates = 0, lost = 0, wrong_route = 0;
         for(unsigned int seed = 1; seed <= 20; seed++){
             GridMaze m;
@@ -85,7 +81,7 @@ int main() {
             else if(sb.known_nodes != truth.nodeCount()) duplicates++;
             else if(!sb.is_shortest) wrong_route++;
             else clean++;
-            if(sb.is_shortest && !sb.run_done) wrong_route = 999;   // impossible by construction
+            if(sb.is_shortest && !sb.run_done) wrong_route = 999;   // cannot happen
         }
         std::printf("  (heavy drift over 20 mazes: clean %d, duplicated nodes %d, lost %d, wrong route %d)\n",
                     clean, duplicates, lost, wrong_route);
@@ -94,8 +90,7 @@ int main() {
     }
 
     {
-        // two real junctions closer together than the merge radius: the robot
-        // thinks it never left A, and must say so instead of inventing a map
+        // two junctions closer than the merge radius: the robot thinks it never left A
         MazeGraph g;
         int s = g.addNode(NodeType::Start, 0, 0);
         int a = g.addNode(NodeType::Normal, 1000, 0);

@@ -21,10 +21,7 @@ struct Node{
     NodeType type = NodeType::Normal;
     int exit_count = 0;
     int exit_edge[MAX_EXITS]={};
-    // exit_cmd[k] is what the robot passes to go() to drive through exit k.
-    // -1 when nobody told us (hand-built truth mazes).
-    int exit_cmd[MAX_EXITS]={-1,-1,-1,-1};
-    // Optional. All zero means "unknown"; geometry helpers then see no turns.
+    int exit_cmd[MAX_EXITS]={-1,-1,-1,-1};   // what to pass to go() for this exit
     int x_mm = 0;
     int y_mm = 0;
 };
@@ -38,7 +35,7 @@ class MazeGraph{
 
         bool validNode(int id) const {return id >=0 && id<node_count_;}
 
-        // 0 = north, 1 = east, 2 = south, 3 = west; odd angles sort between.
+        // N=0 E=2 S=4 W=6, diagonals in between
         int compassKey(int from, int edge_idx) const {
             const Node& a = nodes_[from];
             const Node& b = nodes_[otherEnd(edge_idx, from)];
@@ -112,7 +109,6 @@ class MazeGraph{
             return -1;
         }
 
-        // Which exit slot of `node` holds `edge_idx`? -1 if none.
         int exitSlot(int node, int edge_idx) const {
             if(!validNode(node)) return -1;
             const Node& nd = nodes_[node];
@@ -129,9 +125,7 @@ class MazeGraph{
             return -1;
         }
 
-        // Reorder every node's exits north, east, south, west (then by angle
-        // for anything diagonal). Needs positions. Gives a robot-like, stable
-        // exit numbering instead of "whatever order the edges were added".
+        // needs positions; gives the robot a stable exit numbering
         void sortExitsByCompass(){
             for(int i=0;i<node_count_;i++){
                 Node& nd = nodes_[i];

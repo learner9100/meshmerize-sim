@@ -2,13 +2,9 @@
 #include "maze_graph.h"
 #include "rng.h"
 
-// Random grid mazes for the strategy lab. Cells are square, corridors run
-// along the four compass directions. Everything here is fixed-size so it
-// can also run on the chip for benchmarks.
-
 constexpr int MAX_GRID = 20;
 
-// 0 north (row-1), 1 east (col+1), 2 south (row+1), 3 west (col-1)
+// 0 north, 1 east, 2 south, 3 west
 constexpr int DIR_DX[4] = {0, 1, 0, -1};
 constexpr int DIR_DY[4] = {-1, 0, 1, 0};
 inline int opposite(int d){ return (d + 2) % 4; }
@@ -29,13 +25,11 @@ struct GridMaze{
         return n;
     }
 
-    // A cell you can drive straight through without deciding anything.
     bool straightCell(int x, int y) const {
         if(degree(x, y) != 2) return false;
         return (open[y][x][0] && open[y][x][2]) || (open[y][x][1] && open[y][x][3]);
     }
 
-    // Each corridor between two neighbouring cells counted once.
     int passageCount() const {
         int n = 0;
         for(int y=0; y<height; y++)
@@ -52,9 +46,8 @@ struct GridMaze{
     }
 };
 
-// Randomised depth-first carving gives a perfect maze (exactly one route
-// between any two cells). Every extra opening then joins two cells that
-// were already connected, so each one adds exactly one loop.
+// Randomised DFS gives a perfect maze; every extra opening then joins two
+// already-connected cells, so each one adds exactly one loop.
 inline bool generateGrid(GridMaze& m, int w, int h, int extra_openings, unsigned int seed){
     if(w < 2 || h < 2 || w > MAX_GRID || h > MAX_GRID || extra_openings < 0) return false;
 
@@ -92,7 +85,7 @@ inline bool generateGrid(GridMaze& m, int w, int h, int extra_openings, unsigned
         stack_y[top] = ny;
     }
 
-    // Closed inner walls, each encoded once as (cell, east|south).
+    // closed inner walls, each once as (cell, east|south)
     int walls[MAX_GRID * MAX_GRID * 2];
     int wall_count = 0;
     for(int y=0; y<h; y++)
@@ -112,8 +105,7 @@ inline bool generateGrid(GridMaze& m, int w, int h, int extra_openings, unsigned
     return true;
 }
 
-// Marks `count` random cells (never the start or end corner) as checkpoints.
-// Where real checkpoints sit is unknown; this is a stand-in.
+// Real checkpoint placement is unknown; random cells are a stand-in.
 inline bool placeCheckpoints(GridMaze& m, int count, unsigned int seed){
     const int cells = m.width * m.height;
     if(count < 0 || count > cells - 2) return false;
@@ -141,8 +133,7 @@ inline bool isNodeCell(const GridMaze& m, int x, int y){
     return !m.straightCell(x, y);
 }
 
-// Start is the top-left cell, End the bottom-right one. Straight corridor
-// cells disappear into one long edge. Returns false if the graph is full.
+// Start top-left, End bottom-right. Straight cells fold into one long edge.
 inline bool buildGraph(const GridMaze& m, int cell_mm, MazeGraph& g, int& start, int& end){
     g = MazeGraph{};
     start = end = -1;
@@ -178,8 +169,7 @@ inline bool buildGraph(const GridMaze& m, int cell_mm, MazeGraph& g, int& start,
                     steps++;
                 }while(id_of[cy][cx] < 0);
                 const int b = id_of[cy][cx];
-                // both ends see this corridor; add it from the lower id only
-                if(a < b && g.addEdge(a, b, steps * cell_mm) < 0) return false;
+                if(a < b && g.addEdge(a, b, steps * cell_mm) < 0) return false;   // each corridor once
             }
         }
     g.sortExitsByCompass();

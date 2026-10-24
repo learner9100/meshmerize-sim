@@ -7,8 +7,7 @@
 
 constexpr int MAX_TRACE = 4096;
 
-// A Walker that also keeps the stopwatch, remembers where it has been and,
-// if asked, reports positions the way a drifting odometer would.
+// Walker plus stopwatch, visit trace and optional odometry drift.
 class TimedWalker{
     private:
         Walker w_;
@@ -40,7 +39,7 @@ class TimedWalker{
             rep_y_ = truth.node(start).y_mm;
         }
 
-        // From now on here() answers -1 and positions drift.
+        // from now on here() is -1 and positions drift
         void useOdometry(const OdomParams& p){
             odom_ = true;
             op_ = p;

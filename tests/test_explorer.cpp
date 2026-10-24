@@ -10,7 +10,7 @@ static void check(const char* name, bool ok){
     if(!ok) failures++;
 }
 
-// A walker whose motors are dead: every go() fails.
+// every go() fails
 struct BrokenWalker{
     int here() const { return 0; }
     NodeType type() const { return NodeType::Start; }
@@ -35,7 +35,7 @@ int main(){
     truth.addEdge(b, e, 100);
 
     {
-        // S>A>B>S closes the ring, then S>B (shortest known way) >E: 5 moves
+        // S>A>B>S closes the ring, then S>B>E
         MazeGraph known;
         Walker w(truth, s);
         ExploreResult r = explore(w, known, false);
@@ -121,7 +121,7 @@ int main(){
     }
 
     {
-        // same maze plus a 5 m dead end at S; the guard must refuse it
+        // same maze plus a 5 m dead end at S
         MazeGraph t4 = t3;
         int d4 = t4.addNode(NodeType::DeadEnd);
         t4.addEdge(s3, d4, 5000);
@@ -145,8 +145,7 @@ int main(){
     }
 
     {
-        // Pruning. S(0,0), E(1000,0) joined by a 2000 mm detour corridor.
-        // A(0,1000) hangs off S, B(0,2000) hangs off A.
+        // S(0,0), E(1000,0) joined by a 2000 mm detour. A(0,1000) off S, B(0,2000) off A.
         MazeGraph t5;
         int s5 = t5.addNode(NodeType::Start, 0, 0);
         int e5 = t5.addNode(NodeType::End, 1000, 0);
@@ -161,8 +160,7 @@ int main(){
         MazeGraph known;
         Walker w(t5, s5);
         ExploreResult r = explore(w, known, cfg);
-        // bound at S is 0 + 1000 < 2000 so S-A is worth a look;
-        // bound at A is 1000 + 1414 >= 2000 so A-B is not
+        // bound at S: 0 + 1000 < 2000, worth a look; at A: 1000 + 1414 >= 2000, not
         check("prune: visits A but not B", known.nodeCount() == 3);
         check("prune: calls the map complete anyway", r.complete && r.unexplored_exits == 1);
         check("prune: walked 2000+2000+1000 then 3000 back", r.walked_mm == 8000 && r.at_end);
@@ -173,7 +171,7 @@ int main(){
         ExploreResult r2 = explore(w2, known2, cfg);
         check("no prune: visits B as well", known2.nodeCount() == 4 && r2.complete);
 
-        // move E so that no route can beat the straight line: nothing to explore
+        // move E so the corridor already equals the straight line
         t5.setPos(e5, 2000, 0);
         cfg.prune = true;
         MazeGraph known3;
@@ -184,8 +182,7 @@ int main(){
     }
 
     {
-        // Frontier order only matters once a loop closes and two exits are open.
-        // Ring S-A-B-S (100 each); S-E 1000 is End, B-D 3000 is a dead end.
+        // ring S-A-B-S (100 each), S-E 1000 is End, B-D 3000 a dead end
         MazeGraph t6;
         int s6 = t6.addNode(NodeType::Start);
         int a6 = t6.addNode(NodeType::Normal);
@@ -208,13 +205,11 @@ int main(){
         check("orders: both map 5 nodes, 5 edges",
               k1.nodeCount() == 5 && k1.edgeCount() == 5 && k2.nodeCount() == 5 && k2.edgeCount() == 5);
         check("orders: both finish at End, complete", r1.at_end && r2.at_end && r1.complete && r2.complete);
-        // after the ring closes at S: deepest goes B-D first, nearest takes S-E first
         check("orders: deepest drives 300 + 100 + 3000 + 3100 + 1000 = 7500", r1.walked_mm == 7500);
         check("orders: nearest drives 300 + 1000 + 1100 + 3000 + 4100 = 9500", r2.walked_mm == 9500);
     }
 
     {
-        // a map that is already nearly full must fail loudly, not quietly
         MazeGraph known;
         for(int i=0;i<MAX_NODES-1;i++) known.addNode(NodeType::Normal);
         Walker w(truth, s);

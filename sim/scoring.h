@@ -4,9 +4,8 @@
 #include "timed_walker.h"
 #include "robot_model.h"
 
-// Official formula from the Techfest page:
-//   Total = A + B + C + S + L + T - P
-// Everything the page leaves open is an assumption and is marked as such.
+// Total = A + B + C + S + L + T - P, from the Techfest page.
+// Anything the page leaves open is marked "assumption" below.
 struct Rules{
     int dry_limit_s = 180;
     int run_limit_s = 150;
@@ -20,7 +19,7 @@ struct AttemptSetup{
     RobotConfig robot;
     Rules rules;
     Metric metric;              // how the robot picks its Actual Run route
-    double penalties = 0;       // P, undefined by the organisers so far
+    double penalties = 0;       // P, still undefined by the organisers
 };
 
 struct ScoreBreakdown{
@@ -29,11 +28,11 @@ struct ScoreBreakdown{
 
     double dry_s = 0;
     double run_s = 0;
-    double end_found_s = -1;    // Dry Run clock when End was first seen
-    bool dry_done = false;      // physically standing at End with a map
-    bool run_done = false;      // retraced its route to End inside the limit
-    bool is_shortest = false;   // the retraced route is as short as the true optimum
-    bool guaranteed = false;    // explorer could prove nothing shorter was left
+    double end_found_s = -1;
+    bool dry_done = false;      // physically on End with a map
+    bool run_done = false;      // retraced to End inside the limit
+    bool is_shortest = false;   // retraced route as short as the true optimum
+    bool guaranteed = false;    // explorer proved nothing shorter was left
     int checkpoints = 0;
     int walked_mm = 0;
     int path_mm = 0;
@@ -44,15 +43,11 @@ struct ScoreBreakdown{
     ExploreStatus status = ExploreStatus::Ok;
 };
 
-// One complete attempt: Dry Run (explore, finish at End), then Actual Run
-// (replay the chosen route on the real maze with a fresh clock).
-//
-// `explore_fn(TimedWalker&, MazeGraph& known) -> ExploreResult` is whatever
-// drives the robot during the Dry Run. Plug your own in here.
+// Dry Run (explore, finish at End), then Actual Run (replay the chosen route
+// on the real maze with a fresh clock). explore_fn drives the Dry Run.
 template<class Fn>
 ScoreBreakdown playAttemptWith(const MazeGraph& truth, int start, int end,
                                const AttemptSetup& setup, Fn&& explore_fn){
-    // Big scratch objects live here once instead of on the stack each call.
     static MazeGraph known;
     static PathFinder finder;
     static Path path;
@@ -78,17 +73,16 @@ ScoreBreakdown playAttemptWith(const MazeGraph& truth, int start, int end,
     sb.guaranteed = res.complete;
     sb.dry_done = res.status == ExploreStatus::Ok && res.end_found && dry.type() == NodeType::End;
 
-    // Assumption: a Dry Run that never reaches End earns neither B, C nor L.
+    // assumption: a Dry Run that never reaches End earns neither B, C nor L
     if(sb.dry_done){
         sb.B = r.dry_bonus;
         sb.L = r.led_pts;
         sb.C = sb.dry_s < r.dry_limit_s ? r.dry_limit_s - sb.dry_s : 0;
     }
-    // Assumption: overrun of the Dry Run is subtracted from the Actual Run limit.
+    // assumption: Dry Run overrun is taken off the Actual Run limit
     const double overrun = sb.dry_s > r.dry_limit_s ? sb.dry_s - r.dry_limit_s : 0;
     const double run_limit = r.run_limit_s - overrun;
 
-    // Actual Run
     TimedWalker run(truth, start, setup.robot.run);
     if(sb.dry_done && finder.find(known, res.start, res.end, setup.metric, path)){
         sb.path_mm = path.total_mm;
@@ -99,7 +93,7 @@ ScoreBreakdown playAttemptWith(const MazeGraph& truth, int start, int end,
         for(int i=0; ok && i<n; i++) ok = run.go(cmds[i]) >= 0;
         sb.run_s = run.elapsedMs() / 1000.0;
         sb.run_done = ok && run.type() == NodeType::End && sb.run_s <= run_limit;
-        // Assumption: judges compare length, so any route of optimal length counts.
+        // assumption: judges compare length, any route of optimal length counts
         sb.is_shortest = sb.run_done && run.totalMm() == sb.true_mm;
         if(sb.is_shortest){
             sb.S = r.shortest_bonus;
@@ -117,7 +111,6 @@ ScoreBreakdown playAttemptWith(const MazeGraph& truth, int start, int end,
     return sb;
 }
 
-// The usual case: the built-in Explorer with a configuration.
 inline ScoreBreakdown playAttempt(const MazeGraph& truth, int start, int end,
                                   const ExploreConfig& cfg, const AttemptSetup& setup){
     static Explorer explorer;

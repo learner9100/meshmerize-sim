@@ -3,14 +3,9 @@
 #include "explorer.h"
 #include "timed_walker.h"
 
-// Example of a custom Dry Run algorithm plugged into the simulator.
-//
-// Left-hand wall following: at every junction prefer left, then straight,
-// then right, then back. It needs no map to find End, but it records one
-// anyway so the Actual Run can be replayed and scored like everybody else.
-//
-// This version trusts here() for place recognition; see Explorer for the
-// position-based way a real robot has to do it.
+// Left-hand wall following plugged into the simulator as a custom strategy.
+// Prefers left, then straight, right, back. Needs no map to reach End but
+// records one anyway so the Actual Run can be replayed and scored.
 inline ExploreResult wallFollowerExplore(TimedWalker& w, MazeGraph& known){
     ExploreResult res;
     static int to_known[MAX_NODES];
@@ -25,7 +20,7 @@ inline ExploreResult wallFollowerExplore(TimedWalker& w, MazeGraph& known){
     to_known[w.here()] = at;
     res.start = at;
 
-    int heading = 1;   // assume we face east at the start; any fixed choice works
+    int heading = 1;   // facing east at the start
     for(int moves = 0; moves < 4000; moves++){
         if(w.type() == NodeType::End){
             res.end_found = true;

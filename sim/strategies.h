@@ -4,12 +4,10 @@
 #include "robot_model.h"
 #include "scoring.h"
 
-// Anything that can drive a Dry Run. Your own explorer goes behind this.
+// anything that can drive a Dry Run
 typedef ExploreResult (*ExploreFn)(TimedWalker& w, MazeGraph& known);
 
-// A named exploration policy: either a configuration of the built-in
-// Explorer, or a custom function. Friends' teams add theirs to a list and
-// the compare tool does the rest.
+// a configuration of the built-in Explorer, or a custom function
 struct Strategy{
     const char* name;
     const char* blurb;

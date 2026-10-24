@@ -11,7 +11,6 @@ static void check(const char* name, bool ok) {
     if (!ok) failures++;
 }
 
-// The plug-in example must behave like a well-mannered strategy.
 int main() {
     MazeGraph g;
     int s = g.addNode(NodeType::Start, 0, 0);

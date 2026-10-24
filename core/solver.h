@@ -4,9 +4,7 @@
 
 constexpr int INF_MM=0x3FFFFFFF;
 
-// What "shortest" means. Distance is the default and is what we assume the
-// judges check. by_time asks "which route would the robot drive fastest"
-// with the given speed and turn costs.
+// distance is what we assume the judges check; by_time is for "what would we drive fastest"
 struct Metric{
     bool by_time = false;
     CostModel model;
@@ -15,20 +13,19 @@ struct Metric{
 struct Path{
     bool found = false;
     int total_mm = 0;
-    int cost = 0;        // mm, or ms when found with Metric::by_time
-    int turns = 0;       // corners and u-turns along the way
+    int cost = 0;        // mm, or ms with by_time
+    int turns = 0;
     int node_count = 0;
     int nodes[MAX_NODES]={};
     int edge_count = 0;
     int edges[MAX_NODES]={};
 };
 
-// Dijkstra over (node, exit we arrived through) so a turn can be priced by
-// looking at where we came from. Ties on cost are broken by fewer turns.
-// About 16 KB of scratch: on the ESP32 keep one of these static.
+// Dijkstra over (node, exit we arrived through) so a corner can be priced.
+// Ties on cost go to fewer turns. ~16 KB, keep it static on the ESP32.
 class PathFinder{
     private:
-        static constexpr int SLOTS = MAX_EXITS + 1;   // +1 for "arrived from nowhere"
+        static constexpr int SLOTS = MAX_EXITS + 1;   // +1 for the start state
         static constexpr int STATES = MAX_NODES * SLOTS;
 
         int cost_[STATES];
@@ -132,7 +129,6 @@ inline bool shortestPath(const MazeGraph& g, int start, int goal, Path& out){
     return shortestPath(g, start, goal, Metric{}, out);
 }
 
-// How long the robot needs to drive `p`, turns included.
 inline int pathTimeMs(const MazeGraph& g, const Path& p, const CostModel& m){
     int ms = 0;
     int in_dx = 0, in_dy = 0;
@@ -148,8 +144,7 @@ inline int pathTimeMs(const MazeGraph& g, const Path& p, const CostModel& m){
     return ms;
 }
 
-// Turn a path into the go() arguments the robot must issue, one per edge.
-// Returns the count, or -1 if an edge has no recorded command.
+// one go() argument per edge; -1 if some edge has no recorded command
 inline int pathToCommands(const MazeGraph& g, const Path& p, int* cmds, int max_cmds){
     if(p.edge_count > max_cmds) return -1;
     for(int i=0;i<p.edge_count;i++){

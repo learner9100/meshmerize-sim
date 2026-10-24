@@ -1,24 +1,18 @@
 #pragma once
 #include "maze_graph.h"
 
-// Everything the robot believes about its own speed, in integers so the
-// simulator and the firmware add up the very same milliseconds.
-//
-// These are placeholders until measured on the real car (see README,
-// "Calibration"). Treat results as comparisons between strategies, not as
-// predictions of real seconds.
+// Placeholder numbers until measured on the real car, see robot.cfg.
+// Integers so the simulator and the firmware add up the same milliseconds.
 struct CostModel {
-    int mm_per_s = 500;   // average driving speed
-    int node_ms  = 300;   // slowing down / deciding at every node
-    int turn_ms  = 400;   // extra for a 90 degree turn
-    int uturn_ms = 1000;  // extra for reversing out of a dead end
+    int mm_per_s = 500;
+    int node_ms  = 300;
+    int turn_ms  = 400;
+    int uturn_ms = 1000;
 };
 
 enum class Turn { Straight, Corner, UTurn };
 
-// in = direction we were travelling when we arrived, out = direction we leave.
-// Zero vectors (no position data) count as straight so hand-built mazes
-// without coordinates still work.
+// zero vectors (no position data) count as straight
 inline Turn turnKind(int in_dx, int in_dy, int out_dx, int out_dy){
     if((in_dx == 0 && in_dy == 0) || (out_dx == 0 && out_dy == 0)) return Turn::Straight;
     const long cross = (long)in_dx * out_dy - (long)in_dy * out_dx;
@@ -34,7 +28,7 @@ inline int moveCostMs(const CostModel& m, int length_mm, Turn t){
     return ms;
 }
 
-// floor(sqrt(v)); rounding down keeps distance lower bounds valid.
+// floor(sqrt(v)), rounding down keeps lower bounds valid
 inline int isqrt(long v){
     if(v <= 0) return 0;
     long r = 1;

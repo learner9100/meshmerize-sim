@@ -18,7 +18,7 @@ ROBOT ?=
 CSV   ?=
 EXTRA ?=
 
-.PHONY: all test tools show compare clean
+.PHONY: all test tools show compare firmware flash monitor clean
 
 all: test tools
 
@@ -26,6 +26,16 @@ test: $(TESTS)
 > @for t in $(TESTS); do ./$$t || exit 1; done
 
 tools: $(TOOLS)
+
+# robot firmware (needs PlatformIO: pip install platformio)
+firmware:
+> cd firmware && pio run
+
+flash:
+> cd firmware && pio run -t upload
+
+monitor:
+> cd firmware && pio device monitor
 
 show: $(BUILD)/show
 > @./$(BUILD)/show --seed $(SEED) --size $(W) $(H) --loops $(LOOPS) --checkpoints $(CPS) \

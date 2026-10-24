@@ -25,8 +25,7 @@ int main() {
 
     AttemptSetup setup;
 
-    // The one promise that must never break: if the explorer says the map is
-    // complete, the route it retraces really is as short as the true optimum.
+    // if the explorer says complete, the retraced route must really be optimal
     {
         bool honest = true, full_ok = true, all_done = true, first_fine = true;
         int first_missed = 0;
@@ -58,7 +57,7 @@ int main() {
         check("8x8 x30: first-path misses the shortest route at least once", first_missed > 0);
     }
 
-    // prune must not drive more than mapping everything, and usually drives less
+    // prune must not drive more than mapping everything, on the whole
     {
         long prune_mm = 0, full_mm = 0;
         bool never_more = true;
@@ -81,8 +80,8 @@ int main() {
                     prune_mm, full_mm, never_more ? "no" : "yes");
     }
 
-    // The time guard only acts once End is known. Promise: if End was seen
-    // with more than the margin left, the Dry Run finishes under the limit.
+    // the guard only acts once End is known; if End came with margin to spare
+    // the Dry Run must finish under the limit
     {
         ExploreConfig guard;
         guard.order = Frontier::Nearest;

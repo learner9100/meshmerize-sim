@@ -19,8 +19,7 @@ class Walker{
         int xMm() const {return truth_.node(at_).x_mm;}
         int yMm() const {return truth_.node(at_).y_mm;}
 
-        // Compass direction of exit k: 0 N, 1 E, 2 S, 3 W, -1 if unknown or
-        // diagonal. Optional extension, the core explorer does not need it.
+        // compass direction of exit k (0 N, 1 E, 2 S, 3 W), -1 if diagonal/unknown
         int heading(int k) const {
             if(k < 0 || k >= MAX_EXITS || k >= exitCount()) return -1;
             const Node& a = truth_.node(at_);
