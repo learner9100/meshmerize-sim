@@ -21,6 +21,12 @@ struct Node{
     NodeType type = NodeType::Normal;
     int exit_count = 0;
     int exit_edge[MAX_EXITS]={};
+    // exit_cmd[k] is what the robot passes to go() to drive through exit k.
+    // -1 when nobody told us (hand-built truth mazes).
+    int exit_cmd[MAX_EXITS]={-1,-1,-1,-1};
+    // Optional. All zero means "unknown"; geometry helpers then see no turns.
+    int x_mm = 0;
+    int y_mm = 0;
 };
 
 class MazeGraph{
@@ -32,6 +38,21 @@ class MazeGraph{
 
         bool validNode(int id) const {return id >=0 && id<node_count_;}
 
+        // 0 = north, 1 = east, 2 = south, 3 = west; odd angles sort between.
+        int compassKey(int from, int edge_idx) const {
+            const Node& a = nodes_[from];
+            const Node& b = nodes_[otherEnd(edge_idx, from)];
+            const int dx = b.x_mm - a.x_mm;
+            const int dy = b.y_mm - a.y_mm;
+            if(dx == 0 && dy < 0) return 0;
+            if(dx > 0 && dy == 0) return 2;
+            if(dx == 0 && dy > 0) return 4;
+            if(dx < 0 && dy == 0) return 6;
+            if(dx > 0) return dy < 0 ? 1 : 3;
+            if(dx < 0) return dy > 0 ? 5 : 7;
+            return 8;
+        }
+
 
     public:
         int addNode(NodeType type){
@@ -41,7 +62,30 @@ class MazeGraph{
             return node_count_++;
         }
 
+        int addNode(NodeType type, int x_mm, int y_mm){
+            const int id = addNode(type);
+            if(id >= 0) setPos(id, x_mm, y_mm);
+            return id;
+        }
+
+        bool setPos(int id, int x_mm, int y_mm){
+            if(!validNode(id)) return false;
+            nodes_[id].x_mm = x_mm;
+            nodes_[id].y_mm = y_mm;
+            return true;
+        }
+
+        bool setType(int id, NodeType type){
+            if(!validNode(id)) return false;
+            nodes_[id].type = type;
+            return true;
+        }
+
         int addEdge(int a, int b, int length_mm){
+            return addEdge(a, b, length_mm, -1, -1);
+        }
+
+        int addEdge(int a, int b, int length_mm, int cmd_a, int cmd_b){
             if(!validNode(a) || !validNode(b)) return -1;
             if (a==b) return -1;
             if (length_mm <= 0) return -1;
@@ -51,8 +95,12 @@ class MazeGraph{
 
             const int idx = edge_count_++;
             edges_[idx]=Edge{a, b, length_mm};
-            nodes_[a].exit_edge[nodes_[a].exit_count++] = idx;
-            nodes_[b].exit_edge[nodes_[b].exit_count++] = idx;
+            const int ka = nodes_[a].exit_count++;
+            const int kb = nodes_[b].exit_count++;
+            nodes_[a].exit_edge[ka] = idx;
+            nodes_[b].exit_edge[kb] = idx;
+            nodes_[a].exit_cmd[ka] = cmd_a;
+            nodes_[b].exit_cmd[kb] = cmd_b;
             return idx;
         }
 
@@ -62,6 +110,45 @@ class MazeGraph{
             if (e.a == from_node) return e.b;
             if (e.b == from_node) return e.a;
             return -1;
+        }
+
+        // Which exit slot of `node` holds `edge_idx`? -1 if none.
+        int exitSlot(int node, int edge_idx) const {
+            if(!validNode(node)) return -1;
+            const Node& nd = nodes_[node];
+            for(int k=0;k<nd.exit_count;k++){
+                if(nd.exit_edge[k] == edge_idx) return k;
+            }
+            return -1;
+        }
+
+        int findNode(NodeType type) const {
+            for(int i=0;i<node_count_;i++){
+                if(nodes_[i].type == type) return i;
+            }
+            return -1;
+        }
+
+        // Reorder every node's exits north, east, south, west (then by angle
+        // for anything diagonal). Needs positions. Gives a robot-like, stable
+        // exit numbering instead of "whatever order the edges were added".
+        void sortExitsByCompass(){
+            for(int i=0;i<node_count_;i++){
+                Node& nd = nodes_[i];
+                for(int k=1;k<nd.exit_count;k++){
+                    const int ek = nd.exit_edge[k];
+                    const int ck = nd.exit_cmd[k];
+                    const int keyk = compassKey(i, ek);
+                    int j = k - 1;
+                    while(j >= 0 && compassKey(i, nd.exit_edge[j]) > keyk){
+                        nd.exit_edge[j+1] = nd.exit_edge[j];
+                        nd.exit_cmd[j+1] = nd.exit_cmd[j];
+                        j--;
+                    }
+                    nd.exit_edge[j+1] = ek;
+                    nd.exit_cmd[j+1] = ck;
+                }
+            }
         }
 
         int nodeCount() const {return node_count_;}

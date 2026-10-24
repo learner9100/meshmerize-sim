@@ -47,6 +47,44 @@ int main(){
     int extra2 = h.addNode(NodeType::DeadEnd);
     check("full hub as 2nd end is rejected", h.addEdge(extra2, hub, 100) == -1);
     check("and extra2 is left untouched", h.node(extra2).exit_count == 0);
-    
+
+    // positions, exit commands and slot lookup
+    MazeGraph p;
+    int p0 = p.addNode(NodeType::Start, 0, 0);
+    int p1 = p.addNode(NodeType::End, 230, 460);
+    check("node without position reads 0,0", g.node(s).x_mm == 0 && g.node(s).y_mm == 0);
+    check("addNode with position stores it", p.node(p1).x_mm == 230 && p.node(p1).y_mm == 460);
+    check("setPos moves a node", p.setPos(p0, 10, 20) && p.node(p0).x_mm == 10 && p.node(p0).y_mm == 20);
+    check("setPos rejects unknown node", !p.setPos(7, 0, 0));
+    int pe = p.addEdge(p0, p1, 500, 3, 1);
+    check("exit_cmd stored per end", p.node(p0).exit_cmd[0] == 3 && p.node(p1).exit_cmd[0] == 1);
+    check("plain addEdge leaves exit_cmd at -1", g.node(s).exit_cmd[0] == -1);
+    check("exitSlot finds the slot", p.exitSlot(p0, pe) == 0 && p.exitSlot(p1, pe) == 0);
+    check("exitSlot rejects edges not at the node", g.exitSlot(s, e1) == -1);
+    check("exitSlot rejects bad node", p.exitSlot(42, pe) == -1);
+    check("findNode locates End", p.findNode(NodeType::End) == p1);
+    check("findNode returns -1 when absent", p.findNode(NodeType::CheckPoint) == -1);
+    check("setType changes a node", p.setType(p1, NodeType::CheckPoint) && p.findNode(NodeType::CheckPoint) == p1);
+
+    // compass ordering of exits: added W, S, E, N, expected N, E, S, W afterwards
+    MazeGraph c;
+    int hub2 = c.addNode(NodeType::Normal, 1000, 1000);
+    int west = c.addNode(NodeType::DeadEnd, 0, 1000);
+    int south = c.addNode(NodeType::DeadEnd, 1000, 2000);
+    int east = c.addNode(NodeType::DeadEnd, 2000, 1000);
+    int north = c.addNode(NodeType::DeadEnd, 1000, 0);
+    int ew = c.addEdge(hub2, west, 1000, 10, 0);
+    int es = c.addEdge(hub2, south, 1000, 11, 0);
+    int ee = c.addEdge(hub2, east, 1000, 12, 0);
+    int en = c.addEdge(hub2, north, 1000, 13, 0);
+    check("before sorting exits follow insertion order", c.node(hub2).exit_edge[0] == ew && c.node(hub2).exit_edge[3] == en);
+    c.sortExitsByCompass();
+    const Node& hn = c.node(hub2);
+    check("after sorting exits are N, E, S, W",
+          hn.exit_edge[0] == en && hn.exit_edge[1] == ee && hn.exit_edge[2] == es && hn.exit_edge[3] == ew);
+    check("exit_cmd moves together with its edge",
+          hn.exit_cmd[0] == 13 && hn.exit_cmd[1] == 12 && hn.exit_cmd[2] == 11 && hn.exit_cmd[3] == 10);
+    check("single-exit nodes are untouched", c.node(west).exit_edge[0] == ew && c.node(west).exit_count == 1);
+
     return failures;
 }
