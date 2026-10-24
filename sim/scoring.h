@@ -46,11 +46,14 @@ struct ScoreBreakdown{
 
 // One complete attempt: Dry Run (explore, finish at End), then Actual Run
 // (replay the chosen route on the real maze with a fresh clock).
-inline ScoreBreakdown playAttempt(const MazeGraph& truth, int start, int end,
-                                  const ExploreConfig& cfg, const AttemptSetup& setup){
+//
+// `explore_fn(TimedWalker&, MazeGraph& known) -> ExploreResult` is whatever
+// drives the robot during the Dry Run. Plug your own in here.
+template<class Fn>
+ScoreBreakdown playAttemptWith(const MazeGraph& truth, int start, int end,
+                               const AttemptSetup& setup, Fn&& explore_fn){
     // Big scratch objects live here once instead of on the stack each call.
     static MazeGraph known;
-    static Explorer explorer;
     static PathFinder finder;
     static Path path;
 
@@ -63,14 +66,9 @@ inline ScoreBreakdown playAttempt(const MazeGraph& truth, int start, int end,
     // Dry Run
     known = MazeGraph{};
     TimedWalker dry(truth, start, setup.robot.dry);
-    ExploreConfig ecfg = cfg;
-    if(setup.robot.use_odometry){
-        dry.useOdometry(setup.robot.odom);
-        ecfg.trust_ids = false;
-        ecfg.merge_mm = setup.robot.merge_mm;
-    }
+    if(setup.robot.use_odometry) dry.useOdometry(setup.robot.odom);
 
-    const ExploreResult res = explorer.run(dry, known, ecfg);
+    const ExploreResult res = explore_fn(dry, known);
     sb.status = res.status;
     sb.walked_mm = dry.totalMm();
     sb.known_nodes = known.nodeCount();
@@ -117,4 +115,17 @@ inline ScoreBreakdown playAttempt(const MazeGraph& truth, int start, int end,
     sb.P = setup.penalties;
     sb.total = sb.A + sb.B + sb.C + sb.S + sb.L + sb.T - sb.P;
     return sb;
+}
+
+// The usual case: the built-in Explorer with a configuration.
+inline ScoreBreakdown playAttempt(const MazeGraph& truth, int start, int end,
+                                  const ExploreConfig& cfg, const AttemptSetup& setup){
+    static Explorer explorer;
+    ExploreConfig ecfg = cfg;
+    if(setup.robot.use_odometry){
+        ecfg.trust_ids = false;
+        ecfg.merge_mm = setup.robot.merge_mm;
+    }
+    return playAttemptWith(truth, start, end, setup,
+        [&](TimedWalker& w, MazeGraph& known){ return explorer.run(w, known, ecfg); });
 }

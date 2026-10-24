@@ -12,7 +12,7 @@ static void check(const char* name, bool ok) {
 int main() {
     Strategy strats[MAX_STRATEGIES];
     const int n = builtinStrategies(strats, dryRunModel(), 180000, 20000);
-    check("six built-in strategies", n == 6);
+    check("seven built-in strategies", n == 7);
 
     bool unique = true;
     for(int i=0;i<n;i++)
@@ -42,7 +42,8 @@ int main() {
                 if(sb.guaranteed && !sb.is_shortest) honest = false;
                 const bool full = !std::strcmp(strats[i].name, "dfs-full")
                                || !std::strcmp(strats[i].name, "nearest-full")
-                               || !std::strcmp(strats[i].name, "prune");
+                               || !std::strcmp(strats[i].name, "prune")
+                               || !std::strcmp(strats[i].name, "prune-grid");
                 if(full && (!sb.guaranteed || !sb.is_shortest)) full_ok = false;
                 if(!std::strcmp(strats[i].name, "first-path")){
                     if(sb.path_mm < sb.true_mm) first_fine = false;
@@ -52,7 +53,7 @@ int main() {
         }
         check("8x8 x30: every strategy completes both runs", all_done);
         check("8x8 x30: 'guaranteed' is never claimed for a non-shortest route", honest);
-        check("8x8 x30: full, nearest and prune always find the shortest route", full_ok);
+        check("8x8 x30: full, nearest, prune and prune-grid always find the shortest route", full_ok);
         check("8x8 x30: first-path never reports a route shorter than the truth", first_fine);
         check("8x8 x30: first-path misses the shortest route at least once", first_missed > 0);
     }

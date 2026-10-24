@@ -55,6 +55,7 @@ class TimedWalker{
         int totalMm() const { return w_.totalMm(); }
         int xMm() const { return odom_ ? (int)std::lround(rep_x_) : w_.xMm(); }
         int yMm() const { return odom_ ? (int)std::lround(rep_y_) : w_.yMm(); }
+        int heading(int k) const { return w_.heading(k); }
 
         int go(int k){
             const Node& from = truth_.node(w_.here());

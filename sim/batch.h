@@ -79,7 +79,7 @@ inline BatchSummary runBatch(const BatchParams& p, const Strategy* strats, int n
         if(by_time.total_mm != by_dist.total_mm) differs++;
 
         for(int s=0; s<nstrat; s++){
-            const ScoreBreakdown sb = playAttempt(truth, start, end, strats[s].cfg, p.setup);
+            const ScoreBreakdown sb = playStrategy(truth, start, end, strats[s], p.setup);
             Acc& a = acc[s];
             a.n++;
             a.score += sb.total;
