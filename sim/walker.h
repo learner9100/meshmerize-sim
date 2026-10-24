@@ -16,9 +16,11 @@ class Walker{
         int exitCount() const {return truth_.node(at_).exit_count;}
         int backExit() const {return back_exit;}
         int totalMm() const {return total_mm;}
+        int xMm() const {return truth_.node(at_).x_mm;}
+        int yMm() const {return truth_.node(at_).y_mm;}
 
         int go(int k){
-            if(k < 0 || k >= exitCount()) return -1;
+            if(k < 0 || k >= MAX_EXITS || k >= exitCount()) return -1;
             const int ei = truth_.node(at_).exit_edge[k];
             const int next = truth_.otherEnd(ei, at_);
             const int len = truth_.edge(ei).length_mm;
